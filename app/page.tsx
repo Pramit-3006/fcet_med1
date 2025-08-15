@@ -35,8 +35,8 @@ export default function HomePage() {
               <Link href="/enhance" className="text-muted-foreground hover:text-foreground transition-colors">
                 Enhance
               </Link>
-              <Button variant="outline" size="sm">
-                Sign In
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/auth/sign-up">Register</Link>
               </Button>
               <Button size="sm" className="bg-accent hover:bg-accent/90" asChild>
                 <Link href="/upload">Get Started</Link>
@@ -260,6 +260,49 @@ export default function HomePage() {
                     <p className="font-semibold text-sm">Dr. Emily Park</p>
                     <p className="text-muted-foreground text-sm">IT Director, University Hospital</p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section id="contact" className="py-20 bg-muted/30">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2
+              className="text-3xl md:text-4xl font-bold text-foreground mb-4"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Technical Support
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Need technical assistance? Contact our support team for help with the medical imaging platform
+            </p>
+          </div>
+
+          <div className="max-w-2xl mx-auto">
+            <Card className="border-border">
+              <CardHeader className="text-center">
+                <div className="w-16 h-16 bg-accent/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-accent" />
+                </div>
+                <CardTitle className="text-2xl">Technical Support</CardTitle>
+                <CardDescription>Get help with technical issues and platform support</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <div>
+                  <p className="text-lg font-semibold text-foreground">Email Support</p>
+                  <p className="text-muted-foreground">support@medanalyze.com</p>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-foreground">Phone Support</p>
+                  <p className="text-muted-foreground">+1 (555) 987-6543</p>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-foreground">Support Hours</p>
+                  <p className="text-muted-foreground">Monday - Friday: 9:00 AM - 6:00 PM EST</p>
                 </div>
               </CardContent>
             </Card>

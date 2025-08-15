@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,13 +10,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save, Loader2 } from "lucide-react"
+import { ArrowLeft, Save, Loader2, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase/client"
 
 export default function NewPatientPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [user, setUser] = useState(null)
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -28,20 +29,27 @@ export default function NewPatientPage() {
     medical_record_number: "",
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-
-    try {
+  useEffect(() => {
+    const getUser = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    getUser()
+  }, [])
 
-      if (!user) {
-        router.push("/auth/login")
-        return
-      }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
+    if (!user) {
+      router.push("/auth/sign-up")
+      return
+    }
+
+    setLoading(true)
+
+    try {
       const { error } = await supabase.from("patients").insert([
         {
           ...formData,
@@ -83,6 +91,27 @@ export default function NewPatientPage() {
             <p className="text-gray-600 mt-2">Create a new patient record</p>
           </div>
         </div>
+
+        {!user && (
+          <Card className="mb-6 border-violet-200 bg-violet-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-violet-900">Register to Save Patient Records</h3>
+                  <p className="text-sm text-violet-700">
+                    Create an account to permanently save and access your patient data
+                  </p>
+                </div>
+                <Link href="/auth/sign-up">
+                  <Button className="bg-violet-600 hover:bg-violet-700">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Register
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -189,12 +218,12 @@ export default function NewPatientPage() {
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creating...
+                      {user ? "Creating..." : "Redirecting to Register..."}
                     </>
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" />
-                      Create Patient
+                      {user ? "Create Patient" : "Register & Create Patient"}
                     </>
                   )}
                 </Button>
