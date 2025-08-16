@@ -294,7 +294,7 @@ export default function HomePage() {
               <CardContent className="text-center space-y-4">
                 <div>
                   <p className="text-lg font-semibold text-foreground">Email Support</p>
-                  <p className="text-muted-foreground">pramitpradhan3006@gmail.com</p>
+                  <p className="text-muted-foreground">pradhanpramit3006@gmail.com</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-foreground">Phone Support</p>
