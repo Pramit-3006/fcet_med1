@@ -113,6 +113,94 @@ export default function ResultsPage() {
     }
   }
 
+  const exportResults = () => {
+    const reportData = {
+      title: "Medical Image Analysis Report",
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalImages: mockResults.length,
+        lowRisk: mockResults.filter((r) => r.riskLevel === "low").length,
+        mediumRisk: mockResults.filter((r) => r.riskLevel === "medium").length,
+        highRisk: mockResults.filter((r) => r.riskLevel === "high").length,
+        averageConfidence: Math.round(
+          (mockResults.reduce((acc, r) => acc + r.confidence, 0) / mockResults.length) * 100,
+        ),
+      },
+      results: mockResults.map((result) => ({
+        id: result.id,
+        fileName: result.fileName,
+        fileType: result.fileType,
+        timestamp: result.timestamp,
+        analysis: result.analysis,
+        confidence: Math.round(result.confidence * 100),
+        status: result.status,
+        findings: result.findings,
+        riskLevel: result.riskLevel,
+      })),
+    }
+
+    const reportContent = `COMPREHENSIVE MEDICAL IMAGE ANALYSIS REPORT
+Generated: ${new Date().toLocaleString()}
+
+EXECUTIVE SUMMARY
+================
+Total Images Analyzed: ${reportData.summary.totalImages}
+Risk Assessment:
+  - Low Risk: ${reportData.summary.lowRisk} images
+  - Medium Risk: ${reportData.summary.mediumRisk} images  
+  - High Risk: ${reportData.summary.highRisk} images
+Average Confidence Score: ${reportData.summary.averageConfidence}%
+
+DETAILED ANALYSIS RESULTS
+=========================
+${reportData.results
+  .map(
+    (result, index) => `
+${index + 1}. ${result.fileName}
+   Risk Level: ${result.riskLevel.toUpperCase()}
+   Confidence: ${result.confidence}%
+   Analysis Date: ${new Date(result.timestamp).toLocaleString()}
+   
+   Key Findings:
+   ${result.findings.map((finding) => `   • ${finding}`).join("\n")}
+   
+   Detailed Analysis:
+   ${result.analysis}
+   
+   ${"=".repeat(100)}
+`,
+  )
+  .join("")}
+
+CLINICAL RECOMMENDATIONS
+=======================
+• All AI analyses are for screening and educational purposes only
+• Clinical correlation is essential for proper diagnosis
+• Consult qualified healthcare professionals for treatment decisions
+• Consider follow-up imaging as clinically indicated
+• Maintain patient confidentiality and data security
+
+TECHNICAL INFORMATION
+====================
+Analysis System: MedAnalyze AI v1.0
+Processing Date: ${new Date().toLocaleString()}
+Report Format: Comprehensive Text Report
+Data Retention: Follow institutional policies
+
+This report contains confidential medical information and should be handled according to applicable privacy regulations.
+`
+
+    const blob = new Blob([reportContent], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `comprehensive-medical-report-${new Date().toISOString().split("T")[0]}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -141,7 +229,7 @@ export default function ResultsPage() {
                 <Share2 className="w-4 h-4 mr-2" />
                 Share
               </Button>
-              <Button size="sm">
+              <Button size="sm" onClick={exportResults}>
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
