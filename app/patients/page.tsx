@@ -1,38 +1,66 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, User, Calendar, Phone, Mail, UserPlus, History } from "lucide-react"
 import Link from "next/link"
 
-export default async function PatientsPage() {
-  const supabase = createClient()
+interface Patient {
+  id: string
+  first_name: string
+  last_name: string
+  medical_record_number?: string
+  gender?: string
+  date_of_birth?: string
+  phone?: string
+  email?: string
+  created_at: string
+  user_id: string
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+interface AnalysisLog {
+  id: string
+  patient_id: string
+  image_type: string
+  confidence_score: number
+  created_at: string
+  patient_name?: string
+}
 
-  let patients = null
-  let userLogs = null
+export default function PatientsPage() {
+  const [user, setUser] = useState<any>(null)
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [userLogs, setUserLogs] = useState<AnalysisLog[]>([])
 
-  if (user) {
-    // Fetch user's patients and analysis logs
-    const { data: patientsData } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
+  useEffect(() => {
+    const currentUser = localStorage.getItem("currentUser")
+    if (currentUser) {
+      const userData = JSON.parse(currentUser)
+      setUser(userData)
 
-    const { data: logsData } = await supabase
-      .from("analysis_results")
-      .select("*, patients(first_name, last_name)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(10)
+      // Load user's patients from localStorage
+      const allPatients = JSON.parse(localStorage.getItem("patients") || "[]")
+      const userPatients = allPatients.filter((p: any) => p.user_id === userData.id)
+      setPatients(userPatients)
 
-    patients = patientsData
-    userLogs = logsData
-  }
+      // Load user's analysis logs from localStorage
+      const allLogs = JSON.parse(localStorage.getItem("analysisLogs") || "[]")
+      const userAnalysisLogs = allLogs.filter((log: AnalysisLog) => log.id.startsWith(userData.id))
+
+      // Add patient names to logs
+      const logsWithPatientNames = userAnalysisLogs.map((log: AnalysisLog) => {
+        const patient = userPatients.find((p: Patient) => p.id === log.patient_id)
+        return {
+          ...log,
+          patient_name: patient ? `${patient.first_name} ${patient.last_name}` : "Unknown Patient",
+        }
+      })
+
+      setUserLogs(logsWithPatientNames.slice(0, 10))
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -99,9 +127,7 @@ export default async function PatientsPage() {
                     {userLogs.slice(0, 5).map((log) => (
                       <div key={log.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
-                          <p className="font-medium text-sm">
-                            {log.patients ? `${log.patients.first_name} ${log.patients.last_name}` : "Unknown Patient"}
-                          </p>
+                          <p className="font-medium text-sm">{log.patient_name || "Unknown Patient"}</p>
                           <p className="text-xs text-gray-600">
                             {new Date(log.created_at).toLocaleDateString()} - Confidence: {log.confidence_score}%
                           </p>

@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useRef, useCallback } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,6 +9,7 @@ import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Download, Upload, Zap, BarChart3, FileText } from "lucide-react"
+import { useSearchParams } from "next/navigation"
 
 interface EnhancementSettings {
   brightness: number
@@ -35,6 +35,9 @@ export default function ImageEnhancePage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [metrics, setMetrics] = useState<ImageMetrics | null>(null)
+  const [selectedPatient, setSelectedPatient] = useState<string>("")
+  const [patients, setPatients] = useState<any[]>([])
+  const searchParams = useSearchParams()
   const [settings, setSettings] = useState<EnhancementSettings>({
     brightness: 100,
     contrast: 100,
@@ -45,6 +48,20 @@ export default function ImageEnhancePage() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}")
+    if (currentUser.id) {
+      const storedPatients = JSON.parse(localStorage.getItem("patients") || "[]")
+      const userPatients = storedPatients.filter((p: any) => p.user_id === currentUser.id)
+      setPatients(userPatients)
+
+      const patientId = searchParams.get("patientId")
+      if (patientId && userPatients.find((p: any) => p.id === patientId)) {
+        setSelectedPatient(patientId)
+      }
+    }
+  }, [searchParams])
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -87,20 +104,16 @@ export default function ImageEnhancePage() {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
       const data = imageData.data
 
-      // Apply brightness, contrast, and gamma corrections
       for (let i = 0; i < data.length; i += 4) {
-        // Brightness and contrast
         let r = data[i] * (settings.contrast / 100) + (settings.brightness - 100)
         let g = data[i + 1] * (settings.contrast / 100) + (settings.brightness - 100)
         let b = data[i + 2] * (settings.contrast / 100) + (settings.brightness - 100)
 
-        // Gamma correction
         const gamma = settings.gamma / 100
         r = Math.pow(r / 255, 1 / gamma) * 255
         g = Math.pow(g / 255, 1 / gamma) * 255
         b = Math.pow(b / 255, 1 / gamma) * 255
 
-        // Clamp values
         data[i] = Math.max(0, Math.min(255, r))
         data[i + 1] = Math.max(0, Math.min(255, g))
         data[i + 2] = Math.max(0, Math.min(255, b))
@@ -167,6 +180,23 @@ export default function ImageEnhancePage() {
   const downloadEnhanced = () => {
     if (!enhancedImage) return
 
+    if (selectedPatient && metrics) {
+      const enhancementRecord = {
+        id: Date.now().toString(),
+        patient_id: selectedPatient,
+        type: "image_enhancement",
+        originalImage: originalImage,
+        enhancedImage: enhancedImage,
+        settings: settings,
+        metrics: metrics,
+        timestamp: new Date().toISOString(),
+      }
+
+      const existingRecords = JSON.parse(localStorage.getItem("medical_records") || "[]")
+      existingRecords.push(enhancementRecord)
+      localStorage.setItem("medical_records", JSON.stringify(existingRecords))
+    }
+
     const link = document.createElement("a")
     link.download = "enhanced-medical-image.png"
     link.href = enhancedImage
@@ -182,7 +212,6 @@ export default function ImageEnhancePage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Upload and Controls */}
           <div className="lg:col-span-1 space-y-6">
             <Card>
               <CardHeader>
@@ -205,6 +234,41 @@ export default function ImageEnhancePage() {
                 </Button>
               </CardContent>
             </Card>
+
+            {patients.length > 0 && originalImage && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Associate with Patient</CardTitle>
+                  <CardDescription>
+                    {selectedPatient && searchParams.get("patientId")
+                      ? "Enhanced images will be automatically saved to this patient's record"
+                      : "Select a patient to save enhanced images to their record"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <select
+                    value={selectedPatient}
+                    onChange={(e) => setSelectedPatient(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded-md bg-white"
+                    disabled={!!searchParams.get("patientId")}
+                  >
+                    <option value="">Select a patient (optional)</option>
+                    {patients.map((patient) => (
+                      <option key={patient.id} value={patient.id}>
+                        {patient.name} - {patient.medical_record_number}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedPatient && searchParams.get("patientId") && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-md">
+                      <p className="text-sm text-blue-700">
+                        <strong>Selected Patient:</strong> {patients.find((p) => p.id === selectedPatient)?.name}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {originalImage && (
               <Card>
@@ -276,7 +340,6 @@ export default function ImageEnhancePage() {
             )}
           </div>
 
-          {/* Image Comparison */}
           <div className="lg:col-span-2">
             <Card>
               <CardHeader>
@@ -329,7 +392,6 @@ export default function ImageEnhancePage() {
           </div>
         </div>
 
-        {/* Metrics and Reports */}
         {metrics && (
           <div className="mt-6">
             <Tabs defaultValue="metrics" className="w-full">

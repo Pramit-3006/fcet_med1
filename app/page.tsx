@@ -35,6 +35,9 @@ export default function HomePage() {
               <Link href="/enhance" className="text-muted-foreground hover:text-foreground transition-colors">
                 Enhance
               </Link>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/auth/login">Sign In</Link>
+              </Button>
               <Button variant="outline" size="sm" asChild>
                 <Link href="/auth/sign-up">Register</Link>
               </Button>

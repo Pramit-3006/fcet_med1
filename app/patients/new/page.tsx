@@ -12,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Save, Loader2, UserPlus } from "lucide-react"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase/client"
 
 export default function NewPatientPage() {
   const router = useRouter()
@@ -30,43 +29,37 @@ export default function NewPatientPage() {
   })
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
+    try {
+      const userStr = localStorage.getItem("currentUser")
+      if (userStr) {
+        setUser(JSON.parse(userStr))
+      }
+    } catch (error) {
+      console.log("[v0] Error getting user from localStorage:", error)
     }
-    getUser()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!user) {
-      router.push("/auth/sign-up")
-      return
-    }
-
     setLoading(true)
 
     try {
-      const { error } = await supabase.from("patients").insert([
-        {
-          ...formData,
-          user_id: user.id,
-          date_of_birth: formData.date_of_birth || null,
-        },
-      ])
-
-      if (error) {
-        console.error("Error creating patient:", error)
-        alert("Error creating patient. Please try again.")
-      } else {
-        router.push("/patients")
+      const patientData = {
+        ...formData,
+        id: Date.now().toString(),
+        user_id: user?.id || "guest_user",
+        created_at: new Date().toISOString(),
       }
+
+      const existingPatients = JSON.parse(localStorage.getItem("patients") || "[]")
+      existingPatients.push(patientData)
+      localStorage.setItem("patients", JSON.stringify(existingPatients))
+
+      alert("Patient created successfully!")
+      router.push("/patients")
     } catch (error) {
       console.error("Error:", error)
-      alert("An unexpected error occurred.")
+      alert("Error creating patient. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -218,12 +211,12 @@ export default function NewPatientPage() {
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {user ? "Creating..." : "Redirecting to Register..."}
+                      Creating...
                     </>
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" />
-                      {user ? "Create Patient" : "Register & Create Patient"}
+                      Create Patient
                     </>
                   )}
                 </Button>
