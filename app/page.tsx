@@ -294,11 +294,11 @@ export default function HomePage() {
               <CardContent className="text-center space-y-4">
                 <div>
                   <p className="text-lg font-semibold text-foreground">Email Support</p>
-                  <p className="text-muted-foreground">support@medanalyze.com</p>
+                  <p className="text-muted-foreground">pramitpradhan3006@gmail.com</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-foreground">Phone Support</p>
-                  <p className="text-muted-foreground">+1 (555) 987-6543</p>
+                  <p className="text-muted-foreground">+91 8336933369</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-foreground">Support Hours</p>
