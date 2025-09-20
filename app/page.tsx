@@ -35,6 +35,9 @@ export default function HomePage() {
               <Link href="/enhance" className="text-muted-foreground hover:text-foreground transition-colors">
                 Enhance
               </Link>
+              <Link href="/pmsfca" className="text-muted-foreground hover:text-foreground transition-colors">
+                PMSFCA
+              </Link>
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/auth/login">Sign In</Link>
               </Button>
