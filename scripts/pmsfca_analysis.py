@@ -4,53 +4,37 @@ import json
 import base64
 import io
 from PIL import Image
+from sklearn.cluster import KMeans
+from scipy.ndimage import binary_fill_holes, binary_closing
 
 class SimplePMSFCA:
-    def __init__(self, n_clusters=3, max_iter=50):  # fixed __init__
+    def __init__(self, n_clusters=3, max_iter=50):
         self.n_clusters = n_clusters
         self.max_iter = max_iter
         
     def segment(self, image):
-        """Simplified PMSFCA segmentation"""
-        print(f"[v0] Starting simplified PMSFCA on image shape: {image.shape}")
-        
-        # Simple intensity-based clustering
-        flat_img = image.flatten()
-        
-        # Compute intensity thresholds for 3 clusters (CSF, GM, WM)
-        hist, bins = np.histogram(flat_img, bins=256)
-        
-        # Find peaks in histogram for cluster centers
-        smooth_hist = np.convolve(hist, np.ones(5)/5, mode='same')
-        peaks = []
-        for i in range(1, len(smooth_hist)-1):
-            if smooth_hist[i] > smooth_hist[i-1] and smooth_hist[i] > smooth_hist[i+1]:
-                peaks.append(bins[i])
-        
-        # Use top 3 peaks or distribute evenly
-        if len(peaks) >= 3:
-            centers = sorted(peaks[:3])
-        else:
-            centers = [np.percentile(flat_img, p) for p in [25, 50, 75]]
-        
-        self.centers = np.array(centers)
-        print(f"[v0] Cluster centers: {self.centers}")
-        
-        # Assign pixels to clusters based on closest center
-        labels = np.zeros_like(flat_img, dtype=int)
-        for i, pixel in enumerate(flat_img):
-            distances = np.abs(pixel - self.centers)
-            labels[i] = np.argmin(distances)
-        
+        """KMeans-based segmentation"""
+        print(f"[v1] Starting improved PMSFCA on image shape: {image.shape}")
+
+        flat_img = image.flatten().reshape(-1, 1)
+
+        # --- KMeans clustering on intensities ---
+        kmeans = KMeans(n_clusters=self.n_clusters, n_init=10, max_iter=self.max_iter, random_state=42)
+        labels = kmeans.fit_predict(flat_img)
+
         labels = labels.reshape(image.shape)
-        
-        # Create membership maps (simplified)
+        self.centers = kmeans.cluster_centers_.flatten()
+
+        print(f"[v1] Cluster centers: {self.centers}")
+
+        # --- Membership maps ---
         membership_maps = np.zeros(image.shape + (self.n_clusters,))
         for k in range(self.n_clusters):
             membership_maps[..., k] = (labels == k).astype(float)
-        
-        print(f"[v0] Segmentation complete. Unique labels: {np.unique(labels)}")
+
+        print(f"[v1] Segmentation complete. Unique labels: {np.unique(labels)}")
         return labels, membership_maps
+
 
 def decode_base64_image(base64_string):
     """Decode base64 image string to numpy array"""
@@ -156,15 +140,25 @@ def main():
             segmented_visual[labels == i] = color
         
         # ✅ White matter mask (highest intensity cluster)
-        wm_mask = (labels == (pmsfca.n_clusters - 1)).astype(np.uint8) * 255
-        
+        # Identify WM cluster by highest intensity mean
+         wm_cluster = int(np.argmax(pmsfca.centers))
+         wm_mask = (labels == wm_cluster).astype(np.uint8)
+
+        # Fill and smooth WM region
+        wm_mask = binary_fill_holes(wm_mask).astype(np.uint8)
+        wm_mask = binary_closing(wm_mask, structure=np.ones((3,3))).astype(np.uint8)
+
+        # Scale to 0–255 for saving
+        wm_mask = wm_mask * 255
+
+
         # Analyze results
         analysis = analyze_results(labels, membership_maps)
         
         # Encode images
         original_b64 = encode_image_to_base64((img * 255).astype(np.uint8))
         segmented_b64 = encode_image_to_base64(segmented_visual)
-        wm_b64 = encode_image_to_base64(wm_mask)
+        wm_b64 = encode_image_to_base64(wm_filled)
         
         # Prepare final results
         results = {

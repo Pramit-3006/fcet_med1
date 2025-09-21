@@ -28,7 +28,7 @@ interface AnalysisResult {
   timestamp: string
   analysis: string
   confidence: number
-  status: string
+  status: "completed" | "error"
   pmsfcaResults?: any // Added for PMSFCA specific results
 }
 
@@ -179,21 +179,21 @@ const enhancedPMSFCA = (intensities: number[], width: number, height: number) =>
   const nClusters = 3
   const maxIterations = 100
   const tolerance = 0.001
-  const fuzziness = 2.0 // FCM fuzziness parameter
+  const fuzziness = 2.0
 
-  // Initialize cluster centers using k-means++ for better initialization
-  const centers = initializeClusterCenters(intensities, nClusters)
-  console.log("[v0] Initial cluster centers:", centers)
+  // Enhanced initialization with tissue-specific intensity ranges
+  const centers = initializeTissueSpecificCenters(intensities, nClusters)
+  console.log("[v0] Tissue-specific cluster centers:", centers)
 
   const membershipMatrix = initializeMembershipMatrix(intensities.length, nClusters)
   let iteration = 0
   let converged = false
 
-  // FCM clustering iterations
+  // FCM clustering with tissue constraints
   while (iteration < maxIterations && !converged) {
     const oldCenters = [...centers]
 
-    // Update cluster centers
+    // Update cluster centers with tissue-specific constraints
     for (let k = 0; k < nClusters; k++) {
       let numerator = 0
       let denominator = 0
@@ -204,13 +204,16 @@ const enhancedPMSFCA = (intensities: number[], width: number, height: number) =>
         denominator += membership
       }
 
-      centers[k] = denominator > 0 ? numerator / denominator : centers[k]
+      const newCenter = denominator > 0 ? numerator / denominator : centers[k]
+
+      // Apply tissue-specific constraints to prevent cluster drift
+      centers[k] = constrainClusterCenter(newCenter, k, centers)
     }
 
-    // Update membership matrix with pseudo-trapezoidal functions
+    // Update membership matrix with enhanced tissue-specific functions
     for (let i = 0; i < intensities.length; i++) {
       const pixel = intensities[i]
-      const memberships = computePseudoTrapezoidalMembership(pixel, centers)
+      const memberships = computeTissueSpecificMembership(pixel, centers, intensities, i, width, height)
 
       // Normalize memberships
       const sum = memberships.reduce((a, b) => a + b, 0)
@@ -221,29 +224,28 @@ const enhancedPMSFCA = (intensities: number[], width: number, height: number) =>
 
     // Check convergence
     const centerChange = centers.reduce((sum, center, k) => sum + Math.abs(center - oldCenters[k]), 0) / nClusters
-
     converged = centerChange < tolerance
     iteration++
   }
 
-  console.log(`[v0] FCM converged after ${iteration} iterations`)
+  console.log(`[v0] Enhanced FCM converged after ${iteration} iterations`)
 
-  // Apply spatial smoothing with adaptive kernel
-  const smoothedMembership = applySpatialSmoothing(membershipMatrix, width, height, intensities)
+  // Apply enhanced spatial smoothing with tissue boundary preservation
+  const smoothedMembership = applyTissueAwareSpatialSmoothing(membershipMatrix, width, height, intensities)
 
-  // Final pixel classification with confidence thresholding
-  const finalLabels = classifyPixelsWithConfidence(smoothedMembership, intensities, centers)
+  // Enhanced pixel classification with tissue-specific rules
+  const finalLabels = classifyTissuePixels(smoothedMembership, intensities, centers)
 
-  // Post-processing: remove small isolated regions
-  const cleanedLabels = removeSmallRegions(finalLabels, width, height, 10)
+  // Post-processing with tissue-specific region analysis
+  const cleanedLabels = refineTissueRegions(finalLabels, width, height, intensities)
 
-  // Analyze results
-  const clusterStats = analyzeClusterResults(cleanedLabels, smoothedMembership, intensities, centers)
+  // Analyze results with enhanced tissue metrics
+  const clusterStats = analyzeTissueResults(cleanedLabels, smoothedMembership, intensities, centers)
 
   return {
     labels: cleanedLabels,
     membershipMaps: smoothedMembership,
-    centers: centers.sort(), // Sort for consistent ordering
+    centers: centers.sort(),
     iterations: iteration,
     analysis: {
       total_pixels: intensities.length,
@@ -254,91 +256,156 @@ const enhancedPMSFCA = (intensities: number[], width: number, height: number) =>
   }
 }
 
-const initializeClusterCenters = (intensities: number[], nClusters: number): number[] => {
-  const centers: number[] = []
-  const n = intensities.length
+const initializeTissueSpecificCenters = (intensities: number[], nClusters: number): number[] => {
+  const sortedIntensities = [...intensities].sort((a, b) => a - b)
+  const n = sortedIntensities.length
 
-  // Choose first center randomly
-  centers.push(intensities[Math.floor(Math.random() * n)])
+  // Initialize based on typical brain tissue intensity ranges
+  // CSF: lowest intensities (0-30th percentile)
+  // Grey Matter: middle intensities (30-70th percentile)
+  // White Matter: highest intensities (70-100th percentile)
+  const centers = [
+    sortedIntensities[Math.floor(n * 0.15)], // CSF
+    sortedIntensities[Math.floor(n * 0.5)], // Grey Matter
+    sortedIntensities[Math.floor(n * 0.85)], // White Matter
+  ]
 
-  // Choose remaining centers using k-means++ method
-  for (let k = 1; k < nClusters; k++) {
-    const distances: number[] = []
-    let totalDistance = 0
-
-    for (let i = 0; i < n; i++) {
-      const pixel = intensities[i]
-      const minDist = Math.min(...centers.map((center) => Math.abs(pixel - center)))
-      distances[i] = minDist * minDist
-      totalDistance += distances[i]
-    }
-
-    // Select next center with probability proportional to squared distance
-    const threshold = Math.random() * totalDistance
-    let cumulative = 0
-
-    for (let i = 0; i < n; i++) {
-      cumulative += distances[i]
-      if (cumulative >= threshold) {
-        centers.push(intensities[i])
-        break
-      }
-    }
-  }
-
+  console.log("[v0] Tissue-specific centers initialized:", centers)
   return centers.sort()
 }
 
-const initializeMembershipMatrix = (nPixels: number, nClusters: number): number[][] => {
-  const matrix: number[][] = []
+// Helper function to initialize membership matrix
+const initializeMembershipMatrix = (numPixels: number, nClusters: number): number[][] => {
+  const matrix: number[][] = Array(numPixels)
+    .fill(0)
+    .map(() => Array(nClusters).fill(0))
 
-  for (let i = 0; i < nPixels; i++) {
-    const row: number[] = []
+  for (let i = 0; i < numPixels; i++) {
+    const randomValue = Math.random()
     let sum = 0
-
     for (let k = 0; k < nClusters; k++) {
-      const value = Math.random()
-      row.push(value)
-      sum += value
+      matrix[i][k] = randomValue / nClusters + Math.random() * 0.1 // Add some randomness
+      sum += matrix[i][k]
     }
-
-    // Normalize to sum to 1
+    // Normalize
     for (let k = 0; k < nClusters; k++) {
-      row[k] /= sum
+      matrix[i][k] /= sum
     }
-
-    matrix.push(row)
   }
-
   return matrix
 }
 
-const computePseudoTrapezoidalMembership = (pixel: number, centers: number[]): number[] => {
+const constrainClusterCenter = (newCenter: number, clusterIndex: number, allCenters: number[]): number => {
+  const sortedCenters = [...allCenters].sort()
+  const centerIndex = sortedCenters.indexOf(allCenters[clusterIndex])
+
+  // Ensure CSF < Grey Matter < White Matter ordering
+  if (centerIndex === 0) {
+    // CSF
+    return Math.min(newCenter, sortedCenters[1] - 0.05)
+  } else if (centerIndex === 1) {
+    // Grey Matter
+    return Math.max(Math.min(newCenter, sortedCenters[2] - 0.05), sortedCenters[0] + 0.05)
+  } else {
+    // White Matter
+    return Math.max(newCenter, sortedCenters[1] + 0.05)
+  }
+}
+
+const computeTissueSpecificMembership = (
+  pixel: number,
+  centers: number[],
+  allIntensities: number[],
+  pixelIndex: number,
+  width: number,
+  height: number,
+): number[] => {
   const memberships: number[] = []
-  const sigma = 0.1 // Controls the width of the membership function
+
+  // Tissue-specific sigma values for different sensitivity
+  const sigmas = [0.08, 0.12, 0.1] // CSF, GM, WM - GM needs wider range
 
   for (let k = 0; k < centers.length; k++) {
     const center = centers[k]
+    const sigma = sigmas[k]
     const distance = Math.abs(pixel - center)
 
-    // Pseudo-trapezoidal membership function
     let membership: number
 
-    if (distance <= sigma / 2) {
-      membership = 1.0 // Flat top of trapezoid
-    } else if (distance <= sigma) {
-      membership = 1.0 - (distance - sigma / 2) / (sigma / 2) // Linear decay
+    // Enhanced pseudo-trapezoidal with tissue-specific shapes
+    if (k === 1) {
+      // Grey Matter - more permissive membership
+      if (distance <= sigma / 3) {
+        membership = 1.0
+      } else if (distance <= sigma) {
+        membership = 1.0 - Math.pow((distance - sigma / 3) / (sigma - sigma / 3), 1.5)
+      } else {
+        membership = Math.exp(-Math.pow(distance - sigma, 2) / (2 * sigma * sigma * 2))
+      }
     } else {
-      membership = Math.exp(-Math.pow(distance - sigma, 2) / (2 * sigma * sigma)) // Gaussian tail
+      // CSF and White Matter - more restrictive
+      if (distance <= sigma / 4) {
+        membership = 1.0
+      } else if (distance <= sigma) {
+        membership = 1.0 - Math.pow((distance - sigma / 4) / (sigma - sigma / 4), 2)
+      } else {
+        membership = Math.exp(-Math.pow(distance - sigma, 2) / (sigma * sigma))
+      }
     }
 
-    memberships.push(Math.max(0.001, membership)) // Prevent zero membership
+    // Apply spatial context for better tissue discrimination
+    const spatialWeight = computeSpatialTissueWeight(pixelIndex, k, allIntensities, width, height)
+    membership *= spatialWeight
+
+    memberships.push(Math.max(0.001, membership))
   }
 
   return memberships
 }
 
-const applySpatialSmoothing = (
+const computeSpatialTissueWeight = (
+  pixelIndex: number,
+  tissueType: number,
+  intensities: number[],
+  width: number,
+  height: number,
+): number => {
+  const y = Math.floor(pixelIndex / width)
+  const x = pixelIndex % width
+
+  // Get 5x5 neighborhood
+  const neighborIntensities: number[] = []
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const ny = y + dy
+      const nx = x + dx
+      if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+        neighborIntensities.push(intensities[ny * width + nx])
+      }
+    }
+  }
+
+  if (neighborIntensities.length === 0) return 1.0
+
+  const avgNeighborIntensity = neighborIntensities.reduce((a, b) => a + b, 0) / neighborIntensities.length
+  const intensityVariance =
+    neighborIntensities.reduce((sum, val) => sum + Math.pow(val - avgNeighborIntensity, 2), 0) /
+    neighborIntensities.length
+
+  // Tissue-specific spatial rules
+  if (tissueType === 0) {
+    // CSF - prefer homogeneous dark regions
+    return intensityVariance < 0.01 ? 1.2 : 0.8
+  } else if (tissueType === 1) {
+    // Grey Matter - moderate variance expected
+    return intensityVariance > 0.005 && intensityVariance < 0.03 ? 1.1 : 0.9
+  } else {
+    // White Matter - prefer homogeneous bright regions
+    return intensityVariance < 0.015 ? 1.2 : 0.8
+  }
+}
+
+const applyTissueAwareSpatialSmoothing = (
   membershipMatrix: number[][],
   width: number,
   height: number,
@@ -352,17 +419,17 @@ const applySpatialSmoothing = (
       const idx = y * width + x
       const centerIntensity = intensities[idx]
 
-      // Adaptive kernel based on local intensity variation
+      // Adaptive kernel with tissue boundary detection
       const neighbors = [
-        { idx: idx - width - 1, weight: 0.5 }, // Top-left
-        { idx: idx - width, weight: 1.0 }, // Top
-        { idx: idx - width + 1, weight: 0.5 }, // Top-right
-        { idx: idx - 1, weight: 1.0 }, // Left
-        { idx: idx, weight: 2.0 }, // Center
-        { idx: idx + 1, weight: 1.0 }, // Right
-        { idx: idx + width - 1, weight: 0.5 }, // Bottom-left
-        { idx: idx + width, weight: 1.0 }, // Bottom
-        { idx: idx + width + 1, weight: 0.5 }, // Bottom-right
+        { idx: idx - width - 1, weight: 0.3 },
+        { idx: idx - width, weight: 0.8 },
+        { idx: idx - width + 1, weight: 0.3 },
+        { idx: idx - 1, weight: 0.8 },
+        { idx: idx, weight: 2.5 }, // Increased center weight
+        { idx: idx + 1, weight: 0.8 },
+        { idx: idx + width - 1, weight: 0.3 },
+        { idx: idx + width, weight: 0.8 },
+        { idx: idx + width + 1, weight: 0.3 },
       ]
 
       for (let k = 0; k < nClusters; k++) {
@@ -372,8 +439,10 @@ const applySpatialSmoothing = (
         neighbors.forEach(({ idx: nIdx, weight }) => {
           if (nIdx >= 0 && nIdx < intensities.length) {
             const intensityDiff = Math.abs(intensities[nIdx] - centerIntensity)
-            // Reduce weight for neighbors with very different intensities
-            const adaptiveWeight = weight * Math.exp(-intensityDiff * 10)
+
+            // Stronger boundary preservation for tissue interfaces
+            const boundaryFactor = k === 1 ? 15 : 20 // Grey matter gets more smoothing
+            const adaptiveWeight = weight * Math.exp(-intensityDiff * boundaryFactor)
 
             weightedSum += membershipMatrix[nIdx][k] * adaptiveWeight
             totalWeight += adaptiveWeight
@@ -388,41 +457,58 @@ const applySpatialSmoothing = (
   return smoothed
 }
 
-const classifyPixelsWithConfidence = (
-  membershipMatrix: number[][],
-  intensities: number[],
-  centers: number[],
-): number[] => {
+const classifyTissuePixels = (membershipMatrix: number[][], intensities: number[], centers: number[]): number[] => {
   const labels: number[] = []
-  const confidenceThreshold = 0.6 // Minimum confidence for classification
+  const confidenceThreshold = 0.65 // Slightly higher threshold
 
   for (let i = 0; i < intensities.length; i++) {
     const memberships = membershipMatrix[i]
     const maxMembership = Math.max(...memberships)
     const maxIndex = memberships.indexOf(maxMembership)
+    const pixel = intensities[i]
 
-    // Only classify if confidence is high enough
+    // Enhanced tissue-specific classification rules
     if (maxMembership >= confidenceThreshold) {
-      // Additional check: ensure pixel intensity is reasonable for the assigned cluster
-      const expectedIntensity = centers[maxIndex]
-      const intensityDiff = Math.abs(intensities[i] - expectedIntensity)
+      // Verify intensity is appropriate for tissue type
+      const expectedCenter = centers[maxIndex]
+      const intensityDiff = Math.abs(pixel - expectedCenter)
 
-      if (intensityDiff < 0.3) {
-        // Intensity should be close to cluster center
+      // Tissue-specific tolerance
+      const tolerances = [0.15, 0.25, 0.2] // CSF, GM, WM
+
+      if (intensityDiff <= tolerances[maxIndex]) {
         labels[i] = maxIndex
       } else {
-        // Assign to closest cluster by intensity if membership is unreliable
-        const distances = centers.map((center) => Math.abs(intensities[i] - center))
-        labels[i] = distances.indexOf(Math.min(...distances))
+        // Fallback to intensity-based assignment with tissue constraints
+        labels[i] = assignByIntensityWithConstraints(pixel, centers)
       }
     } else {
-      // Low confidence: assign based on intensity similarity
-      const distances = centers.map((center) => Math.abs(intensities[i] - center))
-      labels[i] = distances.indexOf(Math.min(...distances))
+      // Low confidence: use enhanced intensity-based assignment
+      labels[i] = assignByIntensityWithConstraints(pixel, centers)
     }
   }
 
   return labels
+}
+
+const assignByIntensityWithConstraints = (pixel: number, centers: number[]): number => {
+  const distances = centers.map((center) => Math.abs(pixel - center))
+  const minDistance = Math.min(...distances)
+  const closestIndex = distances.indexOf(minDistance)
+
+  // Apply tissue-specific intensity thresholds to prevent misclassification
+  const sortedCenters = [...centers].sort()
+  const gmThresholdLow = sortedCenters[0] + (sortedCenters[1] - sortedCenters[0]) * 0.3
+  const gmThresholdHigh = sortedCenters[1] + (sortedCenters[2] - sortedCenters[1]) * 0.7
+
+  // Force classification based on intensity ranges
+  if (pixel < gmThresholdLow) {
+    return 0 // CSF
+  } else if (pixel > gmThresholdHigh) {
+    return 2 // White Matter
+  } else {
+    return 1 // Grey Matter
+  }
 }
 
 const removeSmallRegions = (labels: number[], width: number, height: number, minSize: number): number[] => {
@@ -506,7 +592,8 @@ const removeSmallRegions = (labels: number[], width: number, height: number, min
   return cleaned
 }
 
-const analyzeClusterResults = (
+// Analyze results with enhanced tissue metrics
+const analyzeTissueResults = (
   labels: number[],
   membershipMatrix: number[][],
   intensities: number[],
@@ -554,6 +641,91 @@ const analyzeClusterResults = (
   return clusterStats
 }
 
+// Refine tissue regions with more sophisticated post-processing
+const refineTissueRegions = (labels: number[], width: number, height: number, intensities: number[]): number[] => {
+  let refinedLabels = [...labels]
+  const minRegionSize = 50 // Minimum size for a region to be considered valid
+
+  // Step 1: Remove small isolated regions
+  refinedLabels = removeSmallRegions(refinedLabels, width, height, minRegionSize)
+
+  // Step 2: Fill small holes within larger regions
+  const visited = new Array(labels.length).fill(false)
+  const getNeighbors = (idx: number): number[] => {
+    const y = Math.floor(idx / width)
+    const x = idx % width
+    const neighbors: number[] = []
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dy === 0 && dx === 0) continue
+        const ny = y + dy
+        const nx = x + dx
+        if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+          neighbors.push(ny * width + nx)
+        }
+      }
+    }
+    return neighbors
+  }
+
+  for (let i = 0; i < refinedLabels.length; i++) {
+    if (!visited[i] && refinedLabels[i] !== 0) {
+      // Don't fill CSF holes
+      const region: number[] = []
+      const stack = [i]
+      let isHole = true
+
+      while (stack.length > 0) {
+        const idx = stack.pop()!
+        if (visited[idx]) continue
+        visited[idx] = true
+        region.push(idx)
+
+        const neighbors = getNeighbors(idx)
+        for (const nIdx of neighbors) {
+          if (refinedLabels[nIdx] === 0) {
+            // Found a CSF neighbor
+            isHole = false
+          }
+          if (!visited[nIdx] && refinedLabels[nIdx] === refinedLabels[i]) {
+            stack.push(nIdx)
+          }
+        }
+      }
+
+      if (isHole && region.length < minRegionSize) {
+        // Fill the hole with the surrounding tissue type
+        const surroundingLabels = new Set<number>()
+        region.forEach((idx) => {
+          getNeighbors(idx).forEach((nIdx) => {
+            if (refinedLabels[nIdx] !== refinedLabels[i]) {
+              surroundingLabels.add(refinedLabels[nIdx])
+            }
+          })
+        })
+
+        if (surroundingLabels.size > 0) {
+          // Assign the most frequent surrounding label
+          const labelCounts: Record<number, number> = {}
+          surroundingLabels.forEach((label) => {
+            labelCounts[label] = (labelCounts[label] || 0) + 1
+          })
+          const mostCommonLabel = Object.keys(labelCounts).reduce((a, b) =>
+            labelCounts[Number.parseInt(a)] > labelCounts[Number.parseInt(b)] ? a : b,
+          )
+
+          region.forEach((idx) => (refinedLabels[idx] = Number.parseInt(mostCommonLabel)))
+        }
+      }
+    }
+  }
+
+  // Step 3: Smooth boundaries using morphological operations (optional, can be complex)
+  // For simplicity, we'll rely on the enhanced smoothing and classification.
+
+  return refinedLabels
+}
+
 const createEnhancedPMSFCAVisualizations = (result: any, width: number, height: number, originalImageData: string) => {
   const canvas = document.createElement("canvas")
   const ctx = canvas.getContext("2d")!
@@ -588,14 +760,21 @@ const createEnhancedPMSFCAVisualizations = (result: any, width: number, height: 
   const wmData = ctx.createImageData(width, height)
   for (let i = 0; i < result.labels.length; i++) {
     const isWM = result.labels[i] === wmLabel
-    // Fix membershipMaps indexing: membershipMaps is [pixel][cluster]
     const confidence = result.membershipMaps[i][wmLabel]
-    const intensity = isWM && confidence > 0.7 ? Math.floor(255 * confidence) : 0
     const pixelIndex = i * 4
-    wmData.data[pixelIndex] = intensity
-    wmData.data[pixelIndex + 1] = intensity
-    wmData.data[pixelIndex + 2] = intensity
-    wmData.data[pixelIndex + 3] = 255
+    if (isWM) {
+      // Pure white for white matter pixels
+      wmData.data[pixelIndex] = 255 // Red
+      wmData.data[pixelIndex + 1] = 255 // Green
+      wmData.data[pixelIndex + 2] = 255 // Blue
+      wmData.data[pixelIndex + 3] = Math.max(128, Math.floor(255 * confidence)) // Alpha for confidence
+    } else {
+      // Black for non-white matter
+      wmData.data[pixelIndex] = 0
+      wmData.data[pixelIndex + 1] = 0
+      wmData.data[pixelIndex + 2] = 0
+      wmData.data[pixelIndex + 3] = 255
+    }
   }
   ctx.putImageData(wmData, 0, 0)
   const wmImage = canvas.toDataURL("image/png")
@@ -663,11 +842,14 @@ export default function UploadPage() {
   }
 
   const handleFiles = useCallback((files: FileList) => {
+    console.log("[v0] handleFiles called with:", files.length, "files") // Added debug logging
     Array.from(files).forEach((file) => {
+      console.log("[v0] Processing file:", file.name, file.type, file.size) // Added debug logging
       const error = validateFile(file)
       const fileId = Math.random().toString(36).substr(2, 9)
 
       if (error) {
+        console.log("[v0] File validation error:", error) // Added debug logging
         const errorFile: UploadedFile = {
           id: fileId,
           file,
@@ -680,8 +862,10 @@ export default function UploadPage() {
         return
       }
 
+      console.log("[v0] File validation passed, reading file") // Added debug logging
       const reader = new FileReader()
       reader.onload = (e) => {
+        console.log("[v0] File read successfully") // Added debug logging
         const newFile: UploadedFile = {
           id: fileId,
           file,
@@ -691,6 +875,9 @@ export default function UploadPage() {
         }
         setUploadedFiles((prev) => [...prev, newFile])
         simulateUpload(fileId)
+      }
+      reader.onerror = (e) => {
+        console.log("[v0] File read error:", e) // Added debug logging
       }
       reader.readAsDataURL(file)
     })
@@ -718,9 +905,14 @@ export default function UploadPage() {
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      console.log("[v0] File input triggered", e.target.files) // Added debug logging
       const files = e.target.files
       if (files) {
+        console.log("[v0] Processing files:", files.length) // Added debug logging
         handleFiles(files)
+        e.target.value = ""
+      } else {
+        console.log("[v0] No files selected") // Added debug logging
       }
     },
     [handleFiles],
@@ -1124,6 +1316,7 @@ This segmentation can be used for volumetric analysis of white matter atrophy, w
                       onChange={handleFileInput}
                       className="hidden"
                       id="file-upload"
+                      key={Math.random()} // Added key to force re-render and clear input
                     />
                     <label htmlFor="file-upload">
                       <Button asChild className="cursor-pointer">
@@ -1321,7 +1514,7 @@ This segmentation can be used for volumetric analysis of white matter atrophy, w
                             </div>
 
                             <Card>
-                              <CardHeader>
+                              <CardHeader className="pb-3">
                                 <CardTitle className="text-lg font-semibold">Full Resolution PMSFCA Results</CardTitle>
                                 <p className="text-sm text-muted-foreground">
                                   Click on any image below to view in full resolution

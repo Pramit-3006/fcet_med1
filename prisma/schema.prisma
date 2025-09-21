@@ -1,0 +1,82 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  analyses MedicalAnalysis[]
+
+  @@map("users")
+}
+
+model MedicalAnalysis {
+  id          String   @id @default(cuid())
+  fileName    String
+  fileType    String
+  fileSize    Int?
+  imageUrl    String?
+  
+  // Analysis results
+  analysisType String // "PMSFCA", "AI_ANALYSIS", "COMBINED"
+  status      String   @default("processing") // "processing", "completed", "failed"
+  confidence  Float?
+  
+  // PMSFCA specific results
+  pmsfcaResults Json? // Stores segmentation data, cluster info, etc.
+  
+  // AI analysis results
+  aiAnalysis    String? // Text analysis from Groq
+  aiConfidence  Float?
+  
+  // Tissue classification results
+  whiteMatter   Json? // White matter segmentation data
+  greyMatter    Json? // Grey matter segmentation data
+  csfMatter     Json? // CSF segmentation data
+  
+  // Metadata
+  processingTime Int? // Processing time in milliseconds
+  errorMessage   String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@map("medical_analyses")
+}
+
+model AnalysisSession {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  
+  // Session data
+  uploadedFiles Json[] // Array of file metadata
+  currentStep   String @default("upload") // "upload", "processing", "results"
+  
+  // Results
+  analyses String[] // Array of analysis IDs
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime // Session expiration
+  
+  @@map("analysis_sessions")
+}
