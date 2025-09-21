@@ -560,18 +560,20 @@ const createEnhancedPMSFCAVisualizations = (result: any, width: number, height: 
   canvas.width = width
   canvas.height = height
 
-  // Enhanced color scheme for better tissue differentiation
-  const tissueColors = [
+  // Determine white matter label (highest intensity cluster)
+  const wmLabel = result.centers.indexOf(Math.max(...result.centers))
+
+  // Create segmented visualization
+  const segmentedData = ctx.createImageData(width, height)
+  const colors = [
     [0, 0, 0], // CSF - Black
     [128, 128, 128], // Gray Matter - Gray
     [255, 255, 255], // White Matter - White
   ]
 
-  // Create segmented image with better contrast
-  const segmentedData = ctx.createImageData(width, height)
   for (let i = 0; i < result.labels.length; i++) {
     const label = result.labels[i]
-    const color = tissueColors[label] || [64, 64, 64]
+    const color = colors[label] || [128, 128, 128]
     const pixelIndex = i * 4
 
     segmentedData.data[pixelIndex] = color[0]
@@ -579,26 +581,22 @@ const createEnhancedPMSFCAVisualizations = (result: any, width: number, height: 
     segmentedData.data[pixelIndex + 2] = color[2]
     segmentedData.data[pixelIndex + 3] = 255
   }
-
   ctx.putImageData(segmentedData, 0, 0)
   const segmentedImage = canvas.toDataURL("image/png")
 
   // Create refined white matter mask with confidence weighting
   const wmData = ctx.createImageData(width, height)
   for (let i = 0; i < result.labels.length; i++) {
-    const isWM = result.labels[i] === 2 // White matter cluster
-    const confidence = result.membershipMaps[2][i] // WM membership confidence
-
-    // Only show high-confidence white matter pixels
+    const isWM = result.labels[i] === wmLabel
+    // Fix membershipMaps indexing: membershipMaps is [pixel][cluster]
+    const confidence = result.membershipMaps[i][wmLabel]
     const intensity = isWM && confidence > 0.7 ? Math.floor(255 * confidence) : 0
     const pixelIndex = i * 4
-
     wmData.data[pixelIndex] = intensity
     wmData.data[pixelIndex + 1] = intensity
     wmData.data[pixelIndex + 2] = intensity
     wmData.data[pixelIndex + 3] = 255
   }
-
   ctx.putImageData(wmData, 0, 0)
   const wmImage = canvas.toDataURL("image/png")
 
@@ -607,27 +605,6 @@ const createEnhancedPMSFCAVisualizations = (result: any, width: number, height: 
     segmented: segmentedImage,
     white_matter: wmImage,
   }
-}
-
-interface UploadedFile {
-  id: string
-  file: File
-  preview: string
-  status: "uploading" | "completed" | "error" | "analyzing" | "analyzed"
-  progress: number
-  error?: string
-  analysis?: AnalysisResult
-}
-
-interface AnalysisResult {
-  id: string
-  fileName: string
-  fileType: string
-  timestamp: string
-  analysis: string
-  confidence: number
-  status: string
-  pmsfcaResults?: any // Added for PMSFCA specific results
 }
 
 export default function UploadPage() {
