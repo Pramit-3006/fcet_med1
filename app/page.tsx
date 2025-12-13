@@ -84,9 +84,9 @@ export default function HomePage() {
                 </Link>
               </Button>
               <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
-                <Link href="/final-report">
+                <Link href="/pmsfca">
                   <Brain className="mr-2 w-4 h-4" />
-                  Final Report
+                  PMSFCA Analysis
                 </Link>
               </Button>
             </div>
