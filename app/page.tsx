@@ -83,6 +83,12 @@ export default function HomePage() {
                   Enhance Images
                 </Link>
               </Button>
+              <Button variant="outline" size="lg" className="px-8 py-3 bg-transparent" asChild>
+                <Link href="/system-report">
+                  <Brain className="mr-2 w-4 h-4" />
+                  System Report
+                </Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -354,6 +360,9 @@ export default function HomePage() {
               </span>
             </div>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
+              <Link href="/system-report" className="hover:text-foreground transition-colors">
+                System Report
+              </Link>
               <a href="#" className="hover:text-foreground transition-colors">
                 Privacy Policy
               </a>
@@ -364,6 +373,13 @@ export default function HomePage() {
                 Support
               </a>
             </div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">Powered by</p>
+              <img src="/starbitlabs-logo.png" alt="StarBitLabs" className="h-4 w-auto" />
+              <p className="text-sm font-semibold text-foreground">StarBitLabs</p>
+            </div>
+          </div>
+          <div className="text-center mt-4">
             <p className="text-sm text-muted-foreground">© 2025 MedAnalyze. All rights reserved.</p>
           </div>
         </div>

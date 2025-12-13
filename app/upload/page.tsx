@@ -934,12 +934,29 @@ export default function UploadPage() {
         let result
 
         if (analysisType === "pmsfca") {
-          console.log("[v0] Starting PMSFCA analysis for:", file.file.name)
+          console.log("[v0] Starting AI-enhanced PMSFCA analysis for:", file.file.name)
 
-          const pmsfcaResult = await performPMSFCAAnalysis(file.preview)
-          result = pmsfcaResult
+          response = await fetch("/api/analyze-enhanced", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imageData: file.preview,
+              fileName: file.file.name,
+              fileType: file.file.type,
+              analysisType: "pmsfca",
+              patientId: selectedPatient || null,
+            }),
+          })
 
-          console.log("[v0] PMSFCA analysis completed:", result)
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`AI-enhanced PMSFCA analysis failed: ${response.status} - ${errorText}`)
+          }
+
+          result = await response.json()
+          console.log("[v0] AI-enhanced PMSFCA analysis completed:", result)
         } else {
           // Existing AI analysis
           response = await fetch("/api/analyze", {
