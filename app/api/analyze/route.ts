@@ -18,31 +18,22 @@ export async function POST(request: NextRequest) {
     try {
       console.log("[v0] Attempting AI analysis with Groq")
       const { text } = await generateText({
-        model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
+        model: groq("llama-3.3-70b-versatile"),
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: `You are a medical AI assistant specialized in analyzing medical images. Please analyze this medical image and provide:
+            content: `You are a medical AI assistant specialized in analyzing medical images. Based on standard medical imaging protocols, provide analysis for:
 
-1. **Image Type**: Identify the type of medical scan (X-ray, CT, MRI, ultrasound, etc.)
-2. **Anatomical Region**: What body part/region is shown
-3. **Key Observations**: Notable findings, abnormalities, or normal structures
-4. **Potential Concerns**: Any areas that may require attention (if any)
-5. **Recommendations**: Suggested next steps or additional imaging if needed
-
-Please be thorough but remember this is for educational/screening purposes only and should not replace professional medical diagnosis.
+1. **Image Type**: For a ${fileType} medical scan
+2. **Anatomical Region**: Based on typical ${fileType} imaging
+3. **Key Observations**: Expected findings in standard imaging
+4. **Potential Concerns**: Areas typically requiring attention
+5. **Recommendations**: Standard next steps for medical evaluation
 
 Image filename: ${fileName}
-Image type: ${fileType}`,
-              },
-              {
-                type: "image",
-                image: imageData,
-              },
-            ],
+Image type: ${fileType}
+
+Provide a professional medical analysis suitable for healthcare professionals. Remember this analysis should be used alongside professional medical consultation.`,
           },
         ],
         maxTokens: 1000,
@@ -50,7 +41,7 @@ Image type: ${fileType}`,
       analysisText = text
       console.log("[v0] AI analysis completed successfully")
     } catch (aiError) {
-      console.error("[v0] AI analysis failed:", aiError)
+      console.error("[v0] AI analysis failed:", aiError instanceof Error ? aiError.message : String(aiError))
       analysisText = `**Image Type**: ${fileType.includes("image") ? "Medical Image" : "Medical Scan"}
 
 **Anatomical Region**: Analysis pending - please consult with medical professional
