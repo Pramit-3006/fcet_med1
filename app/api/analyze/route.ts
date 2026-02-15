@@ -22,63 +22,21 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "user",
-            content: `You are an expert medical imaging specialist with extensive experience in diagnostic radiology and medical image analysis. Provide a comprehensive, detailed analysis for the following medical scan:
+            content: `You are a medical AI assistant specialized in analyzing medical images. Based on standard medical imaging protocols, provide analysis for:
 
-**Image Details:**
-- Filename: ${fileName}
-- Modality: ${fileType}
+1. **Image Type**: For a ${fileType} medical scan
+2. **Anatomical Region**: Based on typical ${fileType} imaging
+3. **Key Observations**: Expected findings in standard imaging
+4. **Potential Concerns**: Areas typically requiring attention
+5. **Recommendations**: Standard next steps for medical evaluation
 
-Please provide a thorough professional report covering the following sections:
+Image filename: ${fileName}
+Image type: ${fileType}
 
-**1. Image Type & Modality Analysis**
-Identify the specific imaging modality and explain the technical aspects of how this type of imaging works and what it typically reveals.
-
-**2. Image Quality Assessment**
-Evaluate the technical quality of the image including resolution, contrast, artifacts, and overall diagnostic quality. Comment on whether image quality is optimal for clinical interpretation.
-
-**3. Anatomical Region Identification**
-Clearly identify which body region(s) and anatomical structures are visualized in this scan. Provide detailed anatomical landmarks and their expected appearance.
-
-**4. Detailed Observations & Findings**
-Provide a systematic analysis including:
-- Normal anatomical structures and their appearance
-- Assessment of tissue density and signal characteristics
-- Evaluation of organ size, shape, and contour
-- Distribution and extent of identified structures
-- Symmetry analysis where applicable
-
-**5. Key Clinical Observations**
-Highlight important pathological or significant normal findings, including:
-- Any abnormalities or areas of concern
-- Unusual patterns or configurations
-- Comparative observations (if relevant)
-- Severity assessment of any findings
-
-**6. Differential Diagnosis Considerations**
-Based on the findings, discuss possible conditions that might present similarly and how this imaging helps differentiate between them.
-
-**7. Areas of Interest & Clinical Significance**
-- Point out regions that require clinical correlation
-- Identify areas that may warrant further investigation
-- Explain the clinical importance of observed findings
-
-**8. Technical Limitations & Considerations**
-Discuss any limitations of this imaging modality for the specific findings and what additional imaging might be helpful.
-
-**9. Recommendations & Next Steps**
-Provide actionable recommendations including:
-- Follow-up imaging studies that may be beneficial
-- Clinical correlation suggestions
-- Timing for follow-up evaluations if applicable
-- Specialist consultation recommendations if needed
-
-**10. Clinical Summary**
-Provide a concise summary statement synthesizing all key findings and their clinical implications.
-
-Ensure your analysis is detailed, evidence-based, and suitable for professional medical use. Use clear medical terminology while remaining accessible to the healthcare team. Always emphasize that findings should be interpreted in clinical context by qualified professionals.`,
+Provide a professional medical analysis suitable for healthcare professionals. Remember this analysis should be used alongside professional medical consultation.`,
           },
         ],
-        maxTokens: 2000,
+        maxTokens: 1000,
       })
       analysisText = text
       console.log("[v0] AI analysis completed successfully")
