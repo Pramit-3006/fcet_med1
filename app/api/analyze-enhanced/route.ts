@@ -14,8 +14,10 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Starting PMSFCA AI validation with Groq")
 
     try {
+      console.log("[v0] Preparing Groq request with image data")
+      
       const { text: aiValidation } = await generateText({
-        model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
+        model: groq("llama-3.3-70b-versatile"),
         messages: [
           {
             role: "user",
@@ -46,7 +48,7 @@ Keep the response concise and clinically relevant.`,
         maxTokens: 800,
       })
 
-      console.log("[v0] AI validation completed successfully")
+      console.log("[v0] AI validation completed successfully, response length:", aiValidation?.length || 0)
 
       const result = {
         id: Date.now().toString(),
@@ -63,9 +65,10 @@ Keep the response concise and clinically relevant.`,
         analysis: result,
       })
     } catch (aiError) {
-      console.error("[v0] AI validation error:", aiError)
+      console.error("[v0] Groq API error:", aiError instanceof Error ? aiError.message : String(aiError))
 
       // Fallback response if AI fails
+      console.log("[v0] Using fallback analysis response due to Groq API issue")
       const fallbackAnalysis = {
         id: Date.now().toString(),
         fileName,
