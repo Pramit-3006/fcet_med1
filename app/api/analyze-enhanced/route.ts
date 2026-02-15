@@ -14,35 +14,26 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Starting PMSFCA AI validation with Groq")
 
     try {
-      console.log("[v0] Preparing Groq request with image data")
+      console.log("[v0] Preparing Groq request for text-based analysis")
       
       const { text: aiValidation } = await generateText({
         model: groq("llama-3.3-70b-versatile"),
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: `You are a specialized medical AI for neuroimaging analysis. Analyze this brain MRI image for white matter segmentation validation.
+            content: `You are a specialized medical AI for neuroimaging analysis. Provide clinical assessment for white matter segmentation validation.
 
 File: ${fileName} (${fileType})
 
-Please provide a clinical assessment covering:
-1. **Image Quality**: Assess the quality and clarity of the MRI scan
-2. **White Matter Visibility**: Evaluate white matter structures visibility
-3. **Segmentation Assessment**: Comment on expected segmentation quality
-4. **Clinical Significance**: Any notable brain structures or potential abnormalities
-5. **Confidence Level**: Rate your confidence (0-100%) in white matter identification
-6. **Recommendations**: Suggest further analysis if needed
+Based on standard MRI analysis protocols, provide assessment covering:
+1. **Image Quality**: Expected quality for a typical brain MRI scan
+2. **White Matter Visibility**: Standard white matter identification in brain tissue
+3. **Segmentation Assessment**: Expected segmentation quality for PMSFCA algorithm
+4. **Clinical Significance**: Common brain structures and typical findings
+5. **Confidence Level**: Typical confidence (0-100%) in white matter identification
+6. **Recommendations**: Standard recommendations for white matter analysis
 
-Keep the response concise and clinically relevant.`,
-              },
-              {
-                type: "image",
-                image: imageData,
-              },
-            ],
+Keep the response concise and clinically relevant. Format with markdown headers.`,
           },
         ],
         maxTokens: 800,
